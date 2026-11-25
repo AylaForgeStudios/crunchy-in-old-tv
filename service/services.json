@@ -1,0 +1,7 @@
+{
+    "id": "org.aylaforge.crunchyinoldtv.service",
+    "description": "Crunchyroll Forwarding Webos Service",
+    "services": [{
+        "name": "org.aylaforge.crunchyinoldtv.service"
+    }]
+}

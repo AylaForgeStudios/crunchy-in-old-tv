@@ -1,0 +1,15 @@
+Crunchy in Old TV es una adaptación mantenida por AylaForge Studios.
+
+Aplicación original: Crunchyroll WebOS Stream, de Esteban Díaz (ediaz23).
+https://github.com/ediaz23/crunchyroll-webos-stream
+
+El trabajo original incluye la interfaz, el catálogo, perfiles, reproducción,
+la integración QR y la adaptación de la rama antigua a webOS.
+Los aportes de la adaptación se registran en docs/UPSTREAM.md.
+
+Proyectos relacionados del autor original:
+https://github.com/ediaz23/crunchyroll-webos-service
+https://github.com/ediaz23/crunchyroll-js-api
+
+El texto de Apache-2.0 se conserva en LICENSE. Las menciones a Crunchyroll
+y LG identifican el servicio y la plataforma. No implican afiliación.

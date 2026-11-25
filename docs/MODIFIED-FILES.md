@@ -1,0 +1,56 @@
+# Modification notices
+
+The following inherited files were modified by AylaForge Studios in the stable adaptation or during recovery. This file also provides notices for JSON, patches and other formats without source comments.
+
+- `.gitignore`
+- `README.md`
+- `assets/img/child.jpg`
+- `assets/img/coffee.png`
+- `assets/img/email.png`
+- `assets/img/empty.jpg`
+- `assets/img/eth.png`
+- `assets/img/github.png`
+- `assets/img/profile.jpg`
+- `config/webpack.config.js`
+- `gulpfile.mjs`
+- `package-lock.json`
+- `package.json`
+- `patches/service-lg35.patch`
+- `scripts/check-buffered-service.cjs`
+- `scripts/check-device-activation.mjs`
+- `scripts/check-lg35.mjs`
+- `service/gulpfile.mjs`
+- `service/package-lock.json`
+- `service/package.json`
+- `service/services.json`
+- `service/src/index.js`
+- `src/App/attachErrorHandler.js`
+- `src/api/account.js`
+- `src/api/assets.js`
+- `src/api/auth.js`
+- `src/api/cms.js`
+- `src/api/config.js`
+- `src/api/content.js`
+- `src/api/deviceActivation.js`
+- `src/api/discover.js`
+- `src/api/drm.js`
+- `src/api/misc.js`
+- `src/api/music.js`
+- `src/api/review.js`
+- `src/api/sessionStorage.js`
+- `src/api/subscription.js`
+- `src/components/ErrorBoundary.js`
+- `src/components/login/Login.js`
+- `src/components/player/Player.js`
+- `src/const.js`
+- `src/hooks/customFetch.js`
+- `src/hooks/homefeedWorker.js`
+- `src/logger.js`
+- `src/requestError.js`
+- `src/views/AppConfigPanel.js`
+- `src/views/DeveloperPanel.js`
+- `src/views/LoginPanel.js`
+- `webos-meta/appinfo.json`
+- `webos-meta/icon-large.png`
+- `webos-meta/icon-mini.png`
+- `webos-meta/icon.png`

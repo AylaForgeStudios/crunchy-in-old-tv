@@ -1,0 +1,15 @@
+{
+    "id": "org.aylaforge.crunchyinoldtv",
+    "version": "0.0.0",
+    "vendor": "AylaForge Studios",
+    "type": "web",
+    "main": "index.html",
+    "title": "Crunchy in Old TV",
+    "icon": "icon.png",
+    "miniicon": "icon-mini.png",
+    "largeIcon": "icon-large.png",
+    "iconColor": "#1c8adb",
+    "uiRevision": 2,
+    "disableBackHistoryAPI": true,
+    "requiredMemory": 180
+}

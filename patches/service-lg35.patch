@@ -1,0 +1,188 @@
+diff --git a/gulpfile.mjs b/gulpfile.mjs
+index 0b55f40..273003c 100644
+--- a/gulpfile.mjs
++++ b/gulpfile.mjs
+@@ -7,8 +7,9 @@ import jshint from 'gulp-jshint';
+ import terser from 'gulp-terser';
+ import babel from 'gulp-babel';
+ import { deleteAsync } from 'del';
+-import { exec } from 'child_process';
++import { exec, execFile } from 'child_process';
+ import { Transform } from 'stream';
++import { rootCertificates } from 'node:tls';
+ import conditionalLoader from 'webpack-conditional-loader';
+ 
+ 
+@@ -39,11 +40,12 @@ function conditionalCompiler () {
+ }
+ 
+ async function buildLib (lib) {
+-    const command = `
+-        npx babel dist/node_modules/${lib} --out-dir dist/node_modules/${lib} --extensions ".js,.jsx"
+-    `;
++    const directory = `dist/node_modules/${lib}`;
+     return new Promise((res, rej) => {
+-        exec(command, (err, stdout, stderr) => {
++        execFile(process.execPath, [
++            'node_modules/@babel/cli/bin/babel.js',
++            directory, '--out-dir', directory, '--extensions', '.js,.jsx',
++        ], (err, stdout, stderr) => {
+             console.log(stdout)
+             console.log(stderr)
+             if (err) {
+@@ -64,6 +66,10 @@ task('misc', () =>
+         .pipe(dest('dist'))
+ )
+ 
++task('tls-roots', () =>
++    fs.promises.writeFile('dist/ca-roots.pem', rootCertificates.join('\n') + '\n')
++)
++
+ task('index', () => {
+     const isProduction = process.env.NODE_ENV === 'production';
+     let stream = src('src/index.js')
+@@ -115,8 +121,8 @@ task('build-libs', (cb) => {
+ task('node-insta-dev', (cb) => { nodeInstall(cb, '') })
+ task('node-insta-prod', (cb) => { nodeInstall(cb, '--omit=dev') })
+ 
+-task('build-dev', series('clean', 'misc', 'index', 'node-insta-prod', 'build-libs'));
+-task('build-prod', series('clean', 'misc', 'index', 'node-insta-prod', 'build-libs'));
++task('build-dev', series('clean', 'misc', 'tls-roots', 'index', 'node-insta-prod', 'build-libs'));
++task('build-prod', series('clean', 'misc', 'tls-roots', 'index', 'node-insta-prod', 'build-libs'));
+ 
+ gulp.task('gulp-postinstall', (cb) => {
+     try {
+diff --git a/src/index.js b/src/index.js
+index bbdce84..4cc658a 100644
+--- a/src/index.js
++++ b/src/index.js
+@@ -3,7 +3,8 @@
+ const fetch = require('node-fetch')
+ const AbortController = require('abort-controller')
+ const https = require('https')
+-const http = require('http')
++const fs = require('fs')
++const path = require('path')
+ const zlib = require('zlib')
+ 
+ Buffer.from = require('buffer-from')
+@@ -72,8 +73,9 @@ const errorHandler = (message, error) => {
+         out.id = message.payload.id
+     }
+     if (error instanceof Error) {
+-        out.error = `${error.name} - ${error.message}`
+-        out.stack = error.stack
++        // FetchError.message and stack can contain a signed URL.
++        const code = /^[A-Z][A-Z0-9_]+$/.test(error.code || '') ? error.code : null
++        out.error = code ? `Request failed (${code})` : 'Request failed'
+         out.retry = (
+             error.type === 'request-timeout' ||
+             error.name === 'AbortError' ||
+@@ -81,7 +83,7 @@ const errorHandler = (message, error) => {
+             error.type === 'network'
+         )
+     } else {
+-        out.error = JSON.stringify(error)
++        out.error = 'Request failed'
+     }
+     message.respond(out)
+     if (message.isSubscription) {
+@@ -176,22 +178,39 @@ async function asyncRequest({ message, res, id, controller, log_name }) {
+     })
+ }
+ 
+-const agentHttps = new https.Agent({ rejectUnauthorized: false })
+-const agentHttp = new http.Agent({ rejectUnauthorized: false })
++// Node 0.12 needs separate PEM entries when replacing its old default roots.
++const ca = fs.readFileSync(path.join(__dirname, '../ca-roots.pem'), 'utf8')
++    .match(/-----BEGIN CERTIFICATE-----[\s\S]+?-----END CERTIFICATE-----/g)
++if (!ca || !ca.length) {
++    throw new Error('Missing trusted TLS roots')
++}
++const agentHttps = new https.Agent({ ca, rejectUnauthorized: true, secureProtocol: 'TLSv1_2_method' })
++const verifiedAgent = target => {
++    if (target.protocol !== 'https:') {
++        throw new Error('HTTPS required')
++    }
++    return agentHttps
++}
+ 
+ /**
+  * @param {import('webos-service').Message} message
+  * @returns {Promise}
+  */
+ const forwardRequest = async message => {
++    if (message.bufferedRequestCancelled) {
++        return
++    }
+     /** @type {import('node-fetch').RequestInit}*/
+     const body = JSON.parse(zlib.gunzipSync(Buffer.from(message.payload.d, 'base64')).toString('utf-8'))
+     /** @type {{url: string}} */
+     const { url } = body
+-    const url_log = url.padEnd(200, ' ').substring(0, 200) + '.'
+-    const log_name = `${body.method || 'GET'} ${url_log} ${body.id || ''}`.trim()
++    const log_name = 'HTTPS request'
+     /** @type {import('abort-controller').AbortController} */
+     const controller = new AbortController()
++    const bufferedSubscription = message.isSubscription && message.payload.buffered === true
++    if (bufferedSubscription) {
++        subscriptions.set(message.uniqueToken, { message, controller })
++    }
+     let timeout = null
+     const prom = new Promise((resolve, reject) => {
+         delete body.url
+@@ -199,25 +218,37 @@ const forwardRequest = async message => {
+         if (body.headers && body.headers['Content-Type'] === 'application/octet-stream' && body.body) {
+             body.body = Buffer.from(body.body, 'base64')
+         }
+-        body.agent = url.startsWith('http://') ? agentHttp : agentHttps
++        body.agent = verifiedAgent
++        const hasSensitiveHeaders = Object.keys(body.headers || {})
++            .some(key => /^(authorization|cookie|x-cr-video-token)$/i.test(key))
++        body.redirect = hasSensitiveHeaders ? 'error' : 'follow'
+         body.timeout = body.timeout || 20000
+         body.signal = controller.signal
+         timeout = setTimeout(() => controller.abort(), body.timeout)
+         fetch(url, body).then(res => {
+             log('res ', log_name, res.status)
+-            return (message.isSubscription ?
++            return (message.isSubscription && !bufferedSubscription ?
+                 asyncRequest({ message, res, id: body.id, controller, log_name }) :
+-                res.arrayBuffer().then(data => message.respond(makeResponse(res, data, log_name, true, {})))
++                res.arrayBuffer().then(data => {
++                    if (!bufferedSubscription || subscriptions.has(message.uniqueToken)) {
++                        message.respond(makeResponse(res, data, log_name, true, {}))
++                    }
++                })
+             )
+         }).then(resolve).catch(reject)
+     }).then(() => {
+         log('end ', log_name, 'okey')
+     }).catch(error => {
+-        console.error('error', log_name, error)
+-        log('end ', log_name, 'error')
+-        errorHandler(message, error)
++        if (!bufferedSubscription || subscriptions.has(message.uniqueToken)) {
++            console.error('HTTPS request failed')
++            log('end ', log_name, 'error')
++            errorHandler(message, error)
++        }
+     }).finally(() => {
+         clearTimeout(timeout)
++        if (bufferedSubscription) {
++            subscriptions.delete(message.uniqueToken)
++        }
+     })
+     if (!message.isSubscription) {
+         await prom
+@@ -229,6 +260,10 @@ const forwardRequest = async message => {
+  * @returns {Promise}
+  */
+ const cancelForwardRequest = message => {
++    if (message.payload.buffered === true) {
++        // Luna can cancel while the service library is still creating the activity.
++        message.bufferedRequestCancelled = true
++    }
+     const el = subscriptions.get(message.uniqueToken)
+     if (el) {
+         subscriptions.delete(message.uniqueToken)
