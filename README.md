@@ -1,5 +1,7 @@
 # Crunchy in Old TV
 
+[![Support on Ko-fi](https://img.shields.io/badge/Support_on_Ko--fi-7139A8?style=for-the-badge&logo=ko-fi&logoColor=white)](https://ko-fi.com/aylaforge)
+
 Crunchy in Old TV is an unofficial community adaptation for older LG webOS televisions, maintained by **AylaForge Studios**. It builds on Esteban Díaz's [Crunchyroll WebOS Stream](https://github.com/ediaz23/crunchyroll-webos-stream) and targets webOS 3.5 and Chromium 38.
 
 ## What has been verified
